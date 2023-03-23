@@ -166,7 +166,8 @@ function agent_step!(agent, model::ABM)
     agent.vel = Tuple(v)
 
     if isin_circle(agent) || isin_cross(agent) || isin_square(agent)
-        agent.vel = sincos(2π * rand(model.rng)) .* norm(agent.vel)
+        agent.vel = sincos(2π * rand(model.rng)) .* norm(agent.vel) .+ sincos(WIGGLE_ANGLE /360 * 2π * rand(model.rng)).* norm(agent.vel)
+        agent.vel = agent.vel ./ norm(agent.vel)
     end
 
 

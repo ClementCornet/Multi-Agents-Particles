@@ -1,23 +1,24 @@
-brownian_motion:
+zone:
     circle: 100 # False/0 if no circle zone. Float to define the radius
     cross: false # False/0 if no cross zone. Float to define the branch width
     square: false # False/0 if no square zone. Float to define the side length
-    wiggle_angle: 360
+    wiggle_angle: 180 # Angle (in degrees) made by particles wiggling in the zone
 
 model:
     side_length: 500.0 # Length of the sides of the model
-    walls: true
+    walls: true # Wether the walls should have collisions
 
 particles:
-    number: 1000
-    collisions: true
-    max_radius: 10.0
-    fixed_radius: false
+    number: 1000 # Number of particles in the model
+    collisions: true # Wether the particles should have collisions
+    max_radius: 10.0 # Maximum radius of the particles
+    fixed_radius: true # Wether the particles should all have the same size
     start_zero_x: false # Initialize all particles with x = 0? Boolean
-    parallel_vel: false
-    fixed_mass: false
-    fixed_k: false
+    parallel_vel: false # # Wether the particles should all start with a parralel velocity
+    fixed_mass: false # Wether the particles should all have the same size
+    fixed_k: false # Wether the particles should all have the same repulsive force
 
 simulation:
-    output_video: true
-    interactive_window: false
+    output_video: true # true: output a video  "simu.mp4"
+    interactive_window: false # true : display an interactive window
+

@@ -1,35 +1,36 @@
 
 
 using Agents
-
+using LinearAlgebra
 using YAML
 
 config = YAML.load_file("config.yaml")
 
 
-# Brownian Motion config
-CIRCLE = config["brownian_motion"]["circle"]
-CROSS = config["brownian_motion"]["cross"]
-SQUARE = config["brownian_motion"]["square"]
+# Zone config
+CIRCLE = config["zone"]["circle"] #y
+CROSS = config["zone"]["cross"] #y
+SQUARE = config["zone"]["square"] #y
+WIGGLE_ANGLE = config["zone"]["wiggle_angle"] #n
 
 # Model config
-MODEL_SIDES = config["model"]["side_length"]
-WALLS = config["model"]["walls"]
+MODEL_SIDES = config["model"]["side_length"] #y
+WALLS = config["model"]["walls"] #n
 
 # Particle config
-N = config["particles"]["number"]
-COLLISIONS = config["particles"]["collisions"]
-MAX_RADIUS = config["particles"]["max_radius"]
-FIXED_RADIUS = config["particles"]["fixed_radius"]
-FIXED_MASS = config["particles"]["fixed_mass"]
-FIXED_K = config["particles"]["fixed_k"]
+N = config["particles"]["number"] #y
+COLLISIONS = config["particles"]["collisions"] #y
+MAX_RADIUS = config["particles"]["max_radius"] #y
+FIXED_RADIUS = config["particles"]["fixed_radius"] #n
+FIXED_MASS = config["particles"]["fixed_mass"] #n
+FIXED_K = config["particles"]["fixed_k"] #n
 
 # Particle initialization
-START_ZERO_X = config["particles"]["start_zero_x"]
+START_ZERO_X = config["particles"]["start_zero_x"] #n
 
 # Render simulation
-VIDEO = config["simulation"]["output_video"]
-INTERACTIVE_WINDOW = config["simulation"]["interactive_window"]
+VIDEO = config["simulation"]["output_video"] #y
+INTERACTIVE_WINDOW = config["simulation"]["interactive_window"] #y
 
 
 @agent Particle ContinuousAgent{2} begin
@@ -44,10 +45,10 @@ using CellListMap.PeriodicSystems
 using StaticArrays
 
 function initialize_model(;
-    number_of_particles=10_000,
-    sides=SVector(500.0, 500.0),
+    number_of_particles=N,
+    sides=SVector(MODEL_SIDES,MODEL_SIDES),
     dt=0.001,
-    max_radius=10.0,
+    max_radius=MAX_RADIUS,
     parallel=true
 )
     ## initial random positions
@@ -86,7 +87,7 @@ function initialize_model(;
         add_agent_pos!(
             Particle(
                 id=id,
-                r=(0.5 + 0.9 * rand()) * max_radius,
+                r=((0.5 + 0.9 * rand()) * max_radius)*(1-Int(FIXED_RADIUS)) + MAX_RADIUS * Int(FIXED_RADIUS),
                 k=(10 + 20 * rand()), # random force constants
                 mass=10.0 + 100 * rand(), # random masses
                 pos=Tuple(positions[id]),
@@ -103,7 +104,7 @@ function calc_forces!(x, y, i, j, d2, forces, model)
     pᵢ = model[i]
     pⱼ = model[j]
     d = sqrt(d2)
-    if d ≤ (pᵢ.r + pⱼ.r)
+    if d ≤ (pᵢ.r + pⱼ.r) && COLLISIONS
         dr = y - x
         fij = 2 * (pᵢ.k * pⱼ.k) * (d2 - (pᵢ.r + pⱼ.r)^2) * (dr / d)
         forces[i] += fij
@@ -134,28 +135,90 @@ function agent_step!(agent, model::ABM)
     x = SVector(agent.pos) + v * dt + (a / 2) * dt^2
     x = normalize_position(Tuple(x), model)
     agent.vel = Tuple(v)
+
+
+    #agent.vel = agent.vel ./ norm(agent.vel)
+
+
+    if isin_circle(agent) || isin_cross(agent) || isin_square(agent)
+        agent.vel = sincos(2π * rand(model.rng)) .* norm(agent.vel)
+    end
+    
+
     move_agent!(agent, x, model)
     ## !!! IMPORTANT: Update positions in the CellListMap.PeriodicSystem
     model.system.positions[id] = SVector(agent.pos)
     return nothing
 end
 
+
+
+function isin_circle(agent)
+    dist_center = sqrt((agent.pos[1]-(MODEL_SIDES/2))^2 + (agent.pos[2]-(MODEL_SIDES/2))^2)
+    if dist_center <= Float64(CIRCLE)
+        return true
+    end
+    return false
+end
+
+function isin_cross(agent)
+
+    dist_x = abs(agent.pos[1] -(MODEL_SIDES/2))
+    if dist_x <= Float64(CROSS)
+        return true
+    end
+    dist_y = abs(agent.pos[2] -(MODEL_SIDES/2))
+    if dist_y <= Float64(CROSS)
+        return true
+    end
+    return false
+end
+
+function isin_square(agent)
+    diff_x = abs(agent.pos[1] -(MODEL_SIDES/2))
+    diff_y = abs(agent.pos[2] -(MODEL_SIDES/2))
+    if diff_x <= Float64(SQUARE) && diff_y <= Float64(SQUARE)
+        return true
+    end
+    return false
+end
+
+function acolor(agent)
+    if agent.mass == Inf
+        return "black"
+    end
+    if isin_circle(agent)
+        return "red"
+    end
+    if isin_cross(agent)
+        return "red"
+    end
+    if isin_square(agent)
+        return "red"
+    end
+    return "blue"
+end
+
+
 # Which should be quite fast
 model = initialize_model()
-
-
-
 using InteractiveDynamics
 using CairoMakie
 CairoMakie.activate!() # hide
 model = initialize_model(number_of_particles=N)
 
 if VIDEO
+    println("... Generating simulation video ...")
     abmvideo(
         "simu2.mp4", model, agent_step!, model_step!;
         framerate=20, frames=200, spf=5,
-        title="Bouncing particles with CellListMap.jl acceleration",
+        title="youpi",
         as=p -> p.r, # marker size
-        ac=p -> p.k # marker color
+        ac=acolor # marker color
     )
+    println("Done.")
+elseif INTERACTIVE_WINDOW
+    println("oui bah c'est bon je rajoute ça")
+else
+    run!(model, agent_step!,model_step!, 1000;)
 end
