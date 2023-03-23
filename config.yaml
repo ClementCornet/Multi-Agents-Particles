@@ -1,5 +1,23 @@
 brownian_motion:
-    circle: false
-    cross: false
-    walls: false
-    square: false
+    circle: 100 # False/0 if no circle zone. Float to define the radius
+    cross: false # False/0 if no cross zone. Float to define the branch width
+    square: false # False/0 if no square zone. Float to define the side length
+    wiggle_angle: 360
+
+model:
+    side_length: 500.0 # Length of the sides of the model
+    walls: true
+
+particles:
+    number: 1000
+    collisions: true
+    max_radius: 10.0
+    fixed_radius: false
+    start_zero_x: false # Initialize all particles with x = 0? Boolean
+    parallel_vel: false
+    fixed_mass: false
+    fixed_k: false
+
+simulation:
+    output_video: true
+    interactive_window: false
