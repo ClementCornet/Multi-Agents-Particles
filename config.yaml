@@ -1,0 +1,5 @@
+brownian_motion:
+    circle: false
+    cross: false
+    walls: false
+    square: false
