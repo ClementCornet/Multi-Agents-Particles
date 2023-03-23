@@ -9,7 +9,9 @@ dependencies = [
     "CairoMakie",
     "Statistics",
     "LinearAlgebra",
-    "GLMakie"
+    "GLMakie",
+    "CSV",
+    "DataFrames"
 ]
 
 Pkg.add(dependencies)

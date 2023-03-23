@@ -3,6 +3,7 @@
 using Agents
 using LinearAlgebra
 using YAML
+using CSV
 
 config = YAML.load_file("config.yaml")
 
@@ -15,7 +16,7 @@ WIGGLE_ANGLE = config["zone"]["wiggle_angle"] #n
 
 # Model config
 MODEL_SIDES = config["model"]["side_length"] #y
-WALLS = config["model"]["walls"] #n
+WALLS = config["model"]["walls"] #y
 
 # Particle config
 N = config["particles"]["number"] #y
@@ -143,7 +144,18 @@ function agent_step!(agent, model::ABM)
     if isin_circle(agent) || isin_cross(agent) || isin_square(agent)
         agent.vel = sincos(2π * rand(model.rng)) .* norm(agent.vel)
     end
-    
+
+    if WALLS
+        # Hits vertical walls
+        if (agent.pos[1] > 0.99 * MODEL_SIDES && agent.vel[1] >0) || (agent.pos[1] < 0.01 * MODEL_SIDES&& agent.vel[1] <0)
+            agent.vel = agent.vel .* (-1,1)
+        end
+        # Hits horizontal walls
+        if (agent.pos[2] > 0.99 * MODEL_SIDES && agent.vel[2] >0) || (agent.pos[2] < 0.01 * MODEL_SIDES&& agent.vel[2] <0)
+            agent.vel = agent.vel .* (1,-1)
+        end
+    end
+
 
     move_agent!(agent, x, model)
     ## !!! IMPORTANT: Update positions in the CellListMap.PeriodicSystem
@@ -207,9 +219,19 @@ using CairoMakie
 CairoMakie.activate!() # hide
 model = initialize_model(number_of_particles=N)
 
+using Statistics: mean, std, var, quantile
+nv(agent) = norm(agent.vel)
+q_20(itr) = quantile(itr,0.2)
+q_40(itr) = quantile(itr,0.4) 
+q_60(itr) = quantile(itr,0.6) 
+q_80(itr) = quantile(itr,0.8) 
+adata = [(nv, mean), (nv, std), (nv,q_20), (nv,q_40), (nv,q_60), (nv,q_80)]
+
+using DataFrames
+
 if VIDEO
     println("... Generating simulation video ...")
-    abmvideo(
+    @time abmvideo(
         "simu2.mp4", model, agent_step!, model_step!;
         framerate=20, frames=200, spf=5,
         title="youpi",
@@ -218,7 +240,10 @@ if VIDEO
     )
     println("Done.")
 elseif INTERACTIVE_WINDOW
+    println("... Interactive Window ...")
     println("oui bah c'est bon je rajoute ça")
 else
-    run!(model, agent_step!,model_step!, 1000;)
+    println("... Blind Simulation ...")
+    @time data = run!(model, agent_step!,model_step!, 1000;adata)
+    CSV.write("simulation.csv",data[1])
 end

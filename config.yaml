@@ -6,7 +6,7 @@ zone:
 
 model:
     side_length: 500.0 # Length of the sides of the model
-    walls: true # Wether the walls should have collisions
+    walls: false # Wether the walls should have collisions
 
 particles:
     number: 1000 # Number of particles in the model
@@ -19,6 +19,6 @@ particles:
     fixed_k: false # Wether the particles should all have the same repulsive force
 
 simulation:
-    output_video: true # true: output a video  "simu.mp4"
+    output_video: false # true: output a video  "simu.mp4"
     interactive_window: false # true : display an interactive window
-
+    n_steps: 1000 # Number of steps of a blind simulation (if no interactive window and no video)
