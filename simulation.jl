@@ -1,42 +1,41 @@
 
-# IMPORTS
-using YAML
+
 using Agents
-using CellListMap.PeriodicSystems
-using StaticArrays
-using InteractiveDynamics
-#using CairoMakie
-using Statistics: mean, std, var
 using LinearAlgebra
-using CairoMakie
-using GLMakie
+using YAML
+using CSV
 
 config = YAML.load_file("config.yaml")
 
 
-# Brownian Motion config
-CIRCLE = config["zone"]["circle"]
-CROSS = config["zone"]["cross"]
-SQUARE = config["zone"]["square"]
+# Zone config
+CIRCLE = config["zone"]["circle"] #y
+CROSS = config["zone"]["cross"] #y
+SQUARE = config["zone"]["square"] #y
+WIGGLE_ANGLE = config["zone"]["wiggle_angle"] #y
 
 # Model config
-MODEL_SIDES = config["model"]["side_length"]
-WALLS = config["model"]["walls"]
+MODEL_SIDES = config["model"]["side_length"] #y
+WALLS = config["model"]["walls"] #y
+PATCHES = config["model"]["patches_by_side"] #n
 
 # Particle config
-N = config["particles"]["number"]
-COLLISIONS = config["particles"]["collisions"]
-MAX_RADIUS = config["particles"]["max_radius"]
-FIXED_RADIUS = config["particles"]["fixed_radius"]
-FIXED_MASS = config["particles"]["fixed_mass"]
-FIXED_K = config["particles"]["fixed_k"]
+N = config["particles"]["number"] #y
+COLLISIONS = config["particles"]["collisions"] #y
+MAX_RADIUS = config["particles"]["max_radius"] #y
+FIXED_RADIUS = config["particles"]["fixed_radius"] #y
+FIXED_MASS = config["particles"]["fixed_mass"] #n
+FIXED_K = config["particles"]["fixed_k"] #n
 
 # Particle initialization
-START_ZERO_X = config["particles"]["start_zero_x"]
+START_ZERO_X = config["particles"]["start_zero_x"] #y
+START_PARALLEL = config["particles"]["parallel_vel"] #y
 
 # Render simulation
-VIDEO = config["simulation"]["output_video"]
-INTERACTIVE_WINDOW = config["simulation"]["interactive_window"]
+VIDEO = config["simulation"]["output_video"] #y
+INTERACTIVE_WINDOW = config["simulation"]["interactive_window"] #y
+STEPS = config["simulation"]["n_steps"] #y
+
 
 @agent Particle ContinuousAgent{2} begin
     r::Float64 # radius
@@ -45,9 +44,13 @@ INTERACTIVE_WINDOW = config["simulation"]["interactive_window"]
 end
 Particle(; id, pos, vel, r, k, mass) = Particle(id, pos, vel, r, k, mass)
 
+
+using CellListMap.PeriodicSystems
+using StaticArrays
+
 function initialize_model(;
     number_of_particles=N,
-    sides=SVector(MODEL_SIDES, MODEL_SIDES),
+    sides=SVector(MODEL_SIDES,MODEL_SIDES),
     dt=0.001,
     max_radius=MAX_RADIUS,
     parallel=true
@@ -88,42 +91,24 @@ function initialize_model(;
         add_agent_pos!(
             Particle(
                 id=id,
-                r=(0.5 + 0.9 * rand()) * max_radius,
-                k=(10 + 20 * rand()), # random force constants
-                mass=10.0 + 100 * rand(), # random masses
-                pos=(
-                    positions[id][1] * (1 - Int(START_ZERO_X)) + 0.02 * MODEL_SIDES * Int(START_ZERO_X),
-                    positions[id][2]
-                ),
-                vel=(100 * randn(), 100 * randn()), # initial velocities
+                r=((0.5 + 0.9 * rand()) * max_radius)*(1-Int(FIXED_RADIUS)) + MAX_RADIUS * Int(FIXED_RADIUS),
+                k=(10 + 20 * rand())*(1-Int(FIXED_K)) + Int(FIXED_K)*20, # random force constants
+                mass=10.0 + 100 * rand() * *(1-Int(FIXED_MASS)), # random masses
+                pos=Tuple(positions[id]) .* (1-Int(START_ZERO_X),1),
+                vel=(100 * randn(), 100 * randn()) .* (1, 1-Int(START_PARALLEL)) , # initial velocities
             ),
             model)
     end
 
-    #if WALLS
-    #    for i in 1:Int(ceil(Int, MODEL_SIDES / MAX_RADIUS))
-    #        add_agent_pos!(
-    #            Particle(
-    #                id=number_of_particles+i,
-    #                r=MAX_RADIUS,
-    #                k=0,
-    #                mass=Inf,
-    #                pos=(i*MAX_RADIUS-1,0),
-    #                vel=(0,0)
-    #            ),
-    #            model)
-    #    end
-    #end
-
-
     return model
 end
+
 
 function calc_forces!(x, y, i, j, d2, forces, model)
     pᵢ = model[i]
     pⱼ = model[j]
     d = sqrt(d2)
-    if d ≤ (pᵢ.r + pⱼ.r)
+    if d ≤ (pᵢ.r + pⱼ.r) && COLLISIONS
         dr = y - x
         fij = 2 * (pᵢ.k * pⱼ.k) * (d2 - (pᵢ.r + pⱼ.r)^2) * (dr / d)
         forces[i] += fij
@@ -132,7 +117,8 @@ function calc_forces!(x, y, i, j, d2, forces, model)
     return forces
 end
 
-function model_step_collisions!(model::ABM)
+
+function model_step!(model::ABM)
     ## Update the pairwise forces at this step
     map_pairwise!(
         (x, y, i, j, d2, forces) -> calc_forces!(x, y, i, j, d2, forces, model),
@@ -141,18 +127,6 @@ function model_step_collisions!(model::ABM)
     return nothing
 end
 
-function model_step_no_collisions!(model::ABM)
-    return nothing
-end
-
-#model_step!(model::ABM) = COLLISIONS ? model_step_collisions!(model) : model_step_no_collisions!(model)
-
-function model_step!(model::ABM)
-    if COLLISIONS
-        return model_step_collisions!(model)
-    end
-    return nothing
-end
 
 function agent_step!(agent, model::ABM)
     id = agent.id
@@ -166,19 +140,37 @@ function agent_step!(agent, model::ABM)
     x = normalize_position(Tuple(x), model)
     agent.vel = Tuple(v)
 
+
+    #agent.vel = agent.vel ./ norm(agent.vel)
+
+
     if isin_circle(agent) || isin_cross(agent) || isin_square(agent)
-        agent.vel = sincos(2π * rand(model.rng)) .* norm(agent.vel) .+ sincos(WIGGLE_ANGLE /360 * 2π * rand(model.rng)).* norm(agent.vel)
-        agent.vel = agent.vel ./ norm(agent.vel)
+        angle = atan(agent.vel[1], agent.vel[2])
+        n = norm(agent.vel)
+        new_angle = angle + WIGGLE_ANGLE / 360 * 2π * (rand()-0.5)
+        new_vel = sincos(new_angle) .* n
+        agent.vel = new_vel
+        #agent.vel = sincos(2π * rand(model.rng)) .* norm(agent.vel)
+    end
+
+    if WALLS
+        # Hits vertical walls
+        if (agent.pos[1] > 0.99 * MODEL_SIDES && agent.vel[1] >0) || (agent.pos[1] < 0.01 * MODEL_SIDES&& agent.vel[1] <0)
+            agent.vel = agent.vel .* (-1,1)
+        end
+        # Hits horizontal walls
+        if (agent.pos[2] > 0.99 * MODEL_SIDES && agent.vel[2] >0) || (agent.pos[2] < 0.01 * MODEL_SIDES&& agent.vel[2] <0)
+            agent.vel = agent.vel .* (1,-1)
+        end
     end
 
 
-
-    #agent.vel = agent.vel ./ norm(agent.vel) .* 0.5
     move_agent!(agent, x, model)
     ## !!! IMPORTANT: Update positions in the CellListMap.PeriodicSystem
     model.system.positions[id] = SVector(agent.pos)
     return nothing
 end
+
 
 
 function isin_circle(agent)
@@ -227,15 +219,60 @@ function acolor(agent)
     return "blue"
 end
 
-function wall_check(agent)
-    agent.vel[1] = agent.vel[1] * -1 * Int(agent.pos[1] > 0.99 * MODEL_SIDES)
-    agent.vel[1] = agent.vel[1] * -1 * Int(agent.pos[1] < 0.01 * MODEL_SIDES)
+
+# Which should be quite fast
+model = initialize_model()
+using InteractiveDynamics
+using CairoMakie
+CairoMakie.activate!() # hide
+model = initialize_model(number_of_particles=N)
+
+using Statistics: mean, std, var, quantile, max
+nv(agent) = norm(agent.vel)
+q_20(itr) = quantile(itr,0.2)
+q_40(itr) = quantile(itr,0.4) 
+q_60(itr) = quantile(itr,0.6) 
+q_80(itr) = quantile(itr,0.8) 
+q_100(itr) = quantile(itr,1.0)
+
+test(itr) = false
+
+#function obs_proba(itr)
+#    patch_len = MODEL_SIDES / PATCHES
+#    obs = falses(PATCHES,PATCHES)
+#    for p in itr
+#       adj_x = 1 + (p.pos[1] % patch_len) /  patch_len
+#       adj_y = 1 + (p.pos[2] % patch_len) /  patch_len
+#       obs[adj_x, adj_y] = true
+#    end
+#    return mean(obs)
+#end
+
+function particle_patch(agent)
+    patch_len = MODEL_SIDES / PATCHES
+    adj_x = agent.pos[1] ÷  patch_len
+    adj_y = agent.pos[2] ÷  patch_len
+    return Int(adj_y * PATCHES + adj_x)
 end
 
+obs_prop(itr) = length(unique(itr)) / (PATCHES^2)
 
-model = initialize_model()
+adata = [(nv, mean), (nv, std), (nv,q_20), (nv,q_40), (nv,q_60), (nv,q_80),(nv,q_100),(particle_patch,obs_prop)]
 
-function play_simulation()
+using DataFrames
+
+if VIDEO
+    println("... Generating simulation video ...")
+    @time abmvideo(
+        "simulation.mp4", model, agent_step!, model_step!;
+        framerate=20, frames=200, spf=5,
+        title="Simulation",
+        as=p -> p.r, # marker size
+        ac=acolor # marker color,
+    )
+    println("Done.")
+elseif INTERACTIVE_WINDOW
+    println("... Interactive Window ...")
     figure, abmobs = abmexploration(
         model;
         agent_step!, model_step!,
@@ -245,27 +282,10 @@ function play_simulation()
         #adata, alabels
         #posdata, poslabels
     )
-
-    return figure
-end
-
-
-if INTERACTIVE_WINDOW
-    play_simulation()
-end
-
-if VIDEO
-    println("... Generating simulation video ...")
-    abmvideo(
-        "output.mp4",
-        model,
-        agent_step!,
-        model_step!;
-        title = "youpi",
-        frames = 100,
-        spf = 1,
-        as=p -> p.r,
-        ac = acolor,   
-        framerate = 20,
-    )
+    using GLMakie
+    figure
+else
+    println("... Blind Simulation ...")
+    @time data = run!(model, agent_step!,model_step!, STEPS;adata)
+    CSV.write("simulation.csv",data[1])
 end
