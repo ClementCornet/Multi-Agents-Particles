@@ -8,15 +8,16 @@ using InteractiveDynamics
 #using CairoMakie
 using Statistics: mean, std, var
 using LinearAlgebra
+using CairoMakie
 using GLMakie
 
 config = YAML.load_file("config.yaml")
 
 
 # Brownian Motion config
-CIRCLE = config["brownian_motion"]["circle"]
-CROSS = config["brownian_motion"]["cross"]
-SQUARE = config["brownian_motion"]["square"]
+CIRCLE = config["zone"]["circle"]
+CROSS = config["zone"]["cross"]
+SQUARE = config["zone"]["square"]
 
 # Model config
 MODEL_SIDES = config["model"]["side_length"]

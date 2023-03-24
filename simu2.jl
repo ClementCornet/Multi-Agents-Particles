@@ -22,16 +22,18 @@ WALLS = config["model"]["walls"] #y
 N = config["particles"]["number"] #y
 COLLISIONS = config["particles"]["collisions"] #y
 MAX_RADIUS = config["particles"]["max_radius"] #y
-FIXED_RADIUS = config["particles"]["fixed_radius"] #n
+FIXED_RADIUS = config["particles"]["fixed_radius"] #y
 FIXED_MASS = config["particles"]["fixed_mass"] #n
 FIXED_K = config["particles"]["fixed_k"] #n
 
 # Particle initialization
 START_ZERO_X = config["particles"]["start_zero_x"] #n
+START_PARALLEL = config["particles"]["parallel_vel"]
 
 # Render simulation
 VIDEO = config["simulation"]["output_video"] #y
 INTERACTIVE_WINDOW = config["simulation"]["interactive_window"] #y
+STEPS = config["simulation"]["n_steps"]
 
 
 @agent Particle ContinuousAgent{2} begin
@@ -89,10 +91,10 @@ function initialize_model(;
             Particle(
                 id=id,
                 r=((0.5 + 0.9 * rand()) * max_radius)*(1-Int(FIXED_RADIUS)) + MAX_RADIUS * Int(FIXED_RADIUS),
-                k=(10 + 20 * rand()), # random force constants
-                mass=10.0 + 100 * rand(), # random masses
-                pos=Tuple(positions[id]),
-                vel=(100 * randn(), 100 * randn()), # initial velocities
+                k=(10 + 20 * rand())*(1-Int(FIXED_K)) + Int(FIXED_K)*20, # random force constants
+                mass=10.0 + 100 * rand() * *(1-Int(FIXED_MASS)), # random masses
+                pos=Tuple(positions[id]) .* (1-Int(START_ZERO_X),1),
+                vel=(100 * randn(), 100 * randn()) .* (1, 1-Int(START_PARALLEL)) , # initial velocities
             ),
             model)
     end
@@ -142,7 +144,12 @@ function agent_step!(agent, model::ABM)
 
 
     if isin_circle(agent) || isin_cross(agent) || isin_square(agent)
-        agent.vel = sincos(2π * rand(model.rng)) .* norm(agent.vel)
+        angle = atan(agent.vel[1], agent.vel[2])
+        n = norm(agent.vel)
+        new_angle = angle + WIGGLE_ANGLE / 360 * 2π * (rand()-0.5)
+        new_vel = sincos(new_angle) .* n
+        agent.vel = new_vel
+        #agent.vel = sincos(2π * rand(model.rng)) .* norm(agent.vel)
     end
 
     if WALLS
@@ -234,16 +241,26 @@ if VIDEO
     @time abmvideo(
         "simu2.mp4", model, agent_step!, model_step!;
         framerate=20, frames=200, spf=5,
-        title="youpi",
+        title="Simulation",
         as=p -> p.r, # marker size
         ac=acolor # marker color
     )
     println("Done.")
 elseif INTERACTIVE_WINDOW
     println("... Interactive Window ...")
-    println("oui bah c'est bon je rajoute ça")
+    figure, abmobs = abmexploration(
+        model;
+        agent_step!, model_step!,
+        #ac=p -> p.k,
+        ac=acolor,
+        as=p -> p.r,
+        #adata, alabels
+        #posdata, poslabels
+    )
+    using GLMakie
+    figure
 else
     println("... Blind Simulation ...")
-    @time data = run!(model, agent_step!,model_step!, 1000;adata)
+    @time data = run!(model, agent_step!,model_step!, STEPS;adata)
     CSV.write("simulation.csv",data[1])
 end
