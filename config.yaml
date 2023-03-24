@@ -1,8 +1,9 @@
+# Note that in YAML, boolean values are "true", "false"
 zone:
     circle: 100 # False/0 if no circle zone. Float to define the radius
     cross: false # False/0 if no cross zone. Float to define the branch width
     square: false # False/0 if no square zone. Float to define the side length
-    wiggle_angle: 360 # Angle (in degrees) made by particles wiggling in the zone
+    wiggle_angle: 45 # Angle (in degrees) of the brownian motion cone
 
 model:
     side_length: 500.0 # Length of the sides of the model
@@ -20,6 +21,6 @@ particles:
     fixed_k: false # Wether the particles should all have the same repulsive force
 
 simulation:
-    output_video: false # true: output a video  "simu.mp4"
+    output_video: true # true: output a video  "simu.mp4"
     interactive_window: false # true : display an interactive window
     n_steps: 100 # Number of steps of a blind simulation (if no interactive window and no video)
